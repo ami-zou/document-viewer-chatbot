@@ -8,19 +8,28 @@ from pymongo import MongoClient
 from bson import ObjectId
 import uvicorn
 from pdf_conversion import convert
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+import json
 
 app = FastAPI()
+
+# Allow all origins in development. Adjust this in production.
+origins = ["*"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # MongoDB Configuration
 MONGO_URI = "mongodb://localhost:27017"
 DATABASE_NAME = "acl_project"
 client = MongoClient(MONGO_URI)
 db = client[DATABASE_NAME]
-
-# Secret key to sign the JWT token
-SECRET_KEY = "mysecretkey"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 # Initialize sample data in MongoDB at startup (if not already exists)
 article_a = db.resources.find_one({"path": "/article_a"})
@@ -57,6 +66,11 @@ if alice is None:
     print("User Alice added to MongoDB.")
 else: 
     print("User Alice already exist in MongoDB.")
+
+# Secret key to sign the JWT token
+SECRET_KEY = "mysecretkey"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 # Function to create JWT token
 def create_access_token(data: dict, expires_delta: timedelta):
@@ -103,9 +117,9 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
 async def login_for_access_token(username: str, password: str):
     # user = next((user for user in USERS if user["username"] == username), None)
         # Check if the user exists in MongoDB
+    print("Logging in username ", username)
     user = db.users.find_one({"username": username})
     if user is None or password != user["password"]:
-        print("user is ", user)
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     # Create a token with user information
@@ -123,13 +137,59 @@ async def logout():
     # and check if the token being used for logout is in that list.
     return {"message": "Logout successful"}
 
+# Function to validate JWT token (replace with proper validation logic)
+def validate_token(token: str):
+    print("validate token ", token)
+    try:
+        # Verify the token using the secret key
+        jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return True
+    except jwt.ExpiredSignatureError:
+        print("Token has expired")
+        return False
+    except jwt.DecodeError:
+        print("Invalid token: decode error")
+        return False
+    except jwt.InvalidTokenError:
+        print("Invalid token")
+        return False
+    except JWTError:
+        print("jwt error")
+        return False
+
+# Dependency to extract the token from the Authorization header
+def extract_token(authorization: str = Depends(oauth2_scheme)):
+    print("extracting token from authorization", authorization)
+    if not authorization: # or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid token")
+    # token = authorization.split("Bearer ")[1]
+    return authorization
+
 # Route to get user profile by ID
-@app.get("/profiles/{id}", response_model=dict)
-async def read_user_profile(id: str, current_user: dict = Depends(get_current_user)):
-    user = next((user for user in USERS if user["id"] == id), None)
-    if user is None:
+@app.get("/dashboard", response_model=dict)
+async def get_user_dashboard(token: str = Depends(extract_token)):
+    print("/dashboard received token ", token)
+    # Validate token
+    if not validate_token(token):
+        raise HTTPException(status_code=401, detail="Invalid token or token has expired")
+    
+    # Decode token
+    decoded_token = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+
+    # Extract values from the decoded token
+    username = decoded_token.get("sub")
+    scopes = decoded_token.get("scopes", [])
+    print(f"Username: {username}")
+    print(f"Scopes: {scopes}")
+        
+    # Fetch user data from the mock database
+    user = db.users.find_one({"username": username})
+    if user:
+        print("found user! ", user, " with user name ", user["username"])
+        content={"username": user["username"], "user": str(user)}
+        return content
+    else:
         raise HTTPException(status_code=404, detail="User not found")
-    return user
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000, reload=True)
