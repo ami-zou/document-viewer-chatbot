@@ -7,11 +7,9 @@ from typing import List
 from pymongo import MongoClient
 from bson import ObjectId
 import uvicorn
-from pdf_conversion import convert
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-import json
-import base64
+from sample_data import insert_sample_data
 
 app = FastAPI()
 
@@ -32,41 +30,46 @@ DATABASE_NAME = "acl_project"
 client = MongoClient(MONGO_URI)
 db = client[DATABASE_NAME]
 
-# Initialize sample data in MongoDB at startup (if not already exists)
-article_a = db.resources.find_one({"path": "/article_a"})
-article_a_id = None
-if article_a is None:
-    article_a_base64_content=convert("./article_a.pdf")
 
-    db.resources.insert_one({
-        "name": "article_a",
-        "type": "pdf",
-        "content": article_a_base64_content,
-        "path": "/article_a"
-    })
-    print("Article A added to MongoDB.")
-    article_a = db.resources.find_one({"path": "/article_a"})
-else:
-    print("Resource article already exist in MongoDB.")
+# # Initialize sample data in MongoDB at startup (if not already exists)
+# Alice with read and write access to 3 climate related articles
+# Bob with read only access to 2 LLM research papers
+insert_sample_data(db)
 
-article_a_id = article_a["_id"]
+# article_a = db.resources.find_one({"path": "/article_a"})
+# article_a_id = None
+# if article_a is None:
+#     article_a_base64_content=convert("./article_a.pdf")
+
+#     db.resources.insert_one({
+#         "name": "article_a",
+#         "type": "pdf",
+#         "content": article_a_base64_content,
+#         "path": "/article_a"
+#     })
+#     print("Article A added to MongoDB.")
+#     article_a = db.resources.find_one({"path": "/article_a"})
+# else:
+#     print("Resource article already exist in MongoDB.")
+
+# article_a_id = article_a["_id"]
 
 
-# Initialize sample user Alice in MongoDB at startup (if not already exists)
-alice = db.users.find_one({"username": "alice"})
+# # Initialize sample user Alice in MongoDB at startup (if not already exists)
+# alice = db.users.find_one({"username": "alice"})
 
-if alice is None:
-    db.users.insert_one({
-        "username": "alice",
-        "password": "password123",  # Note: In a real application, use secure password hashing
-        "permissions": [
-            {"resource_id": article_a_id, "actions": ["read", "write"]}
-            # {"resource_id": ObjectId("article_b"), "actions": ["read"]},
-        ],
-    })
-    print("User Alice added to MongoDB.")
-else: 
-    print("User Alice already exist in MongoDB.")
+# if alice is None:
+#     db.users.insert_one({
+#         "username": "alice",
+#         "password": "password123",  # Note: In a real application, use secure password hashing
+#         "permissions": [
+#             {"resource_id": article_a_id, "actions": ["read", "write"]}
+#             # {"resource_id": ObjectId("article_b"), "actions": ["read"]},
+#         ],
+#     })
+#     print("User Alice added to MongoDB.")
+# else: 
+#     print("User Alice already exist in MongoDB.")
 
 # Secret key to sign the JWT token
 SECRET_KEY = "mysecretkey"
@@ -79,7 +82,7 @@ def create_access_token(data: dict, expires_delta: timedelta):
     expire = datetime.utcnow() + expires_delta
 
     # Print the to_encode dictionary
-    print("to_encode:", to_encode)
+    # print("to_encode:", to_encode)
 
     # Extract permissions and concatenate resource_id:action for each permission
     scopes = []

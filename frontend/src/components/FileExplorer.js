@@ -25,11 +25,22 @@ const FileExplorer = ({ files }) => {
     setIsModalOpen(false);
   };
 
+  const fileContainerStyle = {
+    display: "flex",
+    flexWrap: "wrap",
+  };
+
+  const fileStyle = { margin: "10px", textAlign: "center" };
+
   return (
-    <div>
+    <div style={fileContainerStyle}>
       {files.map((file) => (
         // <div key={file.file_name} onClick={() => onFileClick(file)}>
-        <div key={file.file_name} onClick={() => handleFileClick(file)}>
+        <div
+          key={file.file_name}
+          onClick={() => handleFileClick(file)}
+          style={fileStyle}
+        >
           <p>{file.file_type === "folder" ? "📁" : "📄"}</p>
           <p>{file.file_name}</p>
         </div>
