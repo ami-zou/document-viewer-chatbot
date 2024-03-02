@@ -45,6 +45,7 @@
 // export default App;
 
 import React from "react";
+import ReactDOM from "react-dom";
 import {
   BrowserRouter as Router,
   Route,
@@ -53,6 +54,7 @@ import {
 } from "react-router-dom";
 import Login from "./components/Login";
 import Dashboard from "./components/Dashboard";
+import Dev from "./components/Dev";
 
 function App() {
   return (
@@ -67,6 +69,7 @@ function App() {
         path="/login"
         element={isLoggedIn ? <Navigate to="/Dashboard" /> : <Login />}
       /> */}
+        <Route path="/dev" element={<Dev />} />
       </Routes>
     </Router>
   );

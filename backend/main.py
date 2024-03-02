@@ -11,6 +11,7 @@ from pdf_conversion import convert
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import json
+import base64
 
 app = FastAPI()
 
@@ -182,14 +183,43 @@ async def get_user_dashboard(token: str = Depends(extract_token)):
     print(f"Username: {username}")
     print(f"Scopes: {scopes}")
         
-    # Fetch user data from the mock database
+    # Fetch user data from database
     user = db.users.find_one({"username": username})
-    if user:
-        print("found user! ", user, " with user name ", user["username"])
-        content={"username": user["username"], "user": str(user)}
-        return content
-    else:
+    # if user:
+    #     print("found user! ", user, " with user name ", user["username"])
+    #     content={"username": user["username"], "user": str(user)}
+    #     return content
+    if user is None:
         raise HTTPException(status_code=404, detail="User not found")
+    
+    print("user is ", user)
+    # Fetch resources and permissions from database
+    files = []
+    for permission in user["permissions"]:
+        file = {}
+
+        resource_id = permission["resource_id"]
+        actions = permission["actions"]
+
+        resource = db.resources.find_one({"_id": resource_id})
+        resource_name = resource["name"]
+        resource_path = resource["path"]
+        resource_type = resource["type"]
+        resource_content = resource["content"]
+
+        # # Convert base64 encoded PDF data to binary
+        # pdf_binary_data = base64.b64decode(resource_content)
+
+        file["file_name"] = resource_name
+        file["file_path"] = resource_path
+        file["file_content"] = resource_content
+        file["file_type"] = resource_type
+        file["file_permissions"] = actions
+
+        files.append(file)
+
+    return {"files": files}
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000, reload=True)
