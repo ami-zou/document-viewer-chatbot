@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { useParams, useLocation } from "react-router-dom";
 import FileExplorer from "./FileExplorer";
+import Chatbot from "./Chatbot";
 
 const Dashboard = () => {
   const location = useLocation();
@@ -34,8 +35,10 @@ const Dashboard = () => {
 
   return (
     <div>
+      {/* Navigation bar */}
       <h1>{location.state.username}'s Dashboard</h1>
 
+      {/* File Explorer */}
       {loading ? (
         <p>Loading...</p>
       ) : (
@@ -46,6 +49,9 @@ const Dashboard = () => {
           <FileExplorer files={responseData.files} />
         </div>
       )}
+
+      {/* AI Chatbot */}
+      <Chatbot username={location.state.username} />
     </div>
   );
 };

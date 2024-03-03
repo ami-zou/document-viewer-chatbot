@@ -31,45 +31,11 @@ client = MongoClient(MONGO_URI)
 db = client[DATABASE_NAME]
 
 
-# # Initialize sample data in MongoDB at startup (if not already exists)
+# Initialize sample data in MongoDB at startup (if not already exists)
 # Alice with read and write access to 3 climate related articles
 # Bob with read only access to 2 LLM research papers
 insert_sample_data(db)
 
-# article_a = db.resources.find_one({"path": "/article_a"})
-# article_a_id = None
-# if article_a is None:
-#     article_a_base64_content=convert("./article_a.pdf")
-
-#     db.resources.insert_one({
-#         "name": "article_a",
-#         "type": "pdf",
-#         "content": article_a_base64_content,
-#         "path": "/article_a"
-#     })
-#     print("Article A added to MongoDB.")
-#     article_a = db.resources.find_one({"path": "/article_a"})
-# else:
-#     print("Resource article already exist in MongoDB.")
-
-# article_a_id = article_a["_id"]
-
-
-# # Initialize sample user Alice in MongoDB at startup (if not already exists)
-# alice = db.users.find_one({"username": "alice"})
-
-# if alice is None:
-#     db.users.insert_one({
-#         "username": "alice",
-#         "password": "password123",  # Note: In a real application, use secure password hashing
-#         "permissions": [
-#             {"resource_id": article_a_id, "actions": ["read", "write"]}
-#             # {"resource_id": ObjectId("article_b"), "actions": ["read"]},
-#         ],
-#     })
-#     print("User Alice added to MongoDB.")
-# else: 
-#     print("User Alice already exist in MongoDB.")
 
 # Secret key to sign the JWT token
 SECRET_KEY = "mysecretkey"
@@ -223,6 +189,13 @@ async def get_user_dashboard(token: str = Depends(extract_token)):
 
     return {"files": files}
 
+@app.post("/chatbot")
+def chatbot(data: dict):
+    # TODO: Process the query using a NLP model or service
+    # Generate a response
+    query = data["query"]
+    response = "Chatbot response for query" + query
+    return {"response": response}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000, reload=True)
