@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { useParams, useLocation } from "react-router-dom";
+import { css } from "@emotion/react"; // Import emotion for styling
+import ClipLoader from "react-spinners/ClipLoader"; // Import a loading spinner
 import FileExplorer from "./FileExplorer";
 import Chatbot from "./Chatbot";
 
@@ -40,7 +42,10 @@ const Dashboard = () => {
 
       {/* File Explorer */}
       {loading ? (
-        <p>Loading...</p>
+        <>
+          <ClipLoader size={30} color={"#123abc"} loading={loading} />
+          <p>Loading documents...</p>
+        </>
       ) : (
         <div>
           {/* <pre>{JSON.stringify(responseData, null, 2)}</pre> */}

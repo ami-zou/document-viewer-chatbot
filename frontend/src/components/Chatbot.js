@@ -1,10 +1,20 @@
 // Sample React component for chatbot UI
 import { useEffect, useState } from "react";
+import { css } from "@emotion/react"; // Import emotion for styling
+import ClipLoader from "react-spinners/ClipLoader"; // Import a loading spinner
+
+const override = css`
+  display: block;
+  margin: 0 auto;
+`;
+
+// const socket = io("http://localhost:8000");
 
 const Chatbot = (username) => {
   const AIAssistant = "ai-assistant";
   const [query, setQuery] = useState("");
   const [response, setResponse] = useState("");
+  const [loading, setLoading] = useState(false);
   const startupMessage = {
     sender: AIAssistant,
     text: "Hello, ask me anything",
@@ -19,15 +29,30 @@ const Chatbot = (username) => {
     ]);
   };
 
+  //   useEffect(() => {
+  // Connect to the backend WebSocket (FastAPI)
+  //     // Listen for incoming messages and update the messages state
+  //     socket.on("chat message", ({ sender, text }) => {
+  //       addMessageToHistory(sender, text);
+  //     });
+
+  //     return () => {
+  //       socket.disconnect();
+  //     };
+  //   }, []);
+
   const handleSendMessage = async () => {
     // Update message history + clean text box
     console.log(`Sending user query ${query} to backend`);
     addMessageToHistory(username, query);
 
+    // Set loading to true before fetching
+    setLoading(true);
+
     // Fetch response from backend
-    setResponse("...");
+    // setResponse("...");
     // const apiResponse = await fetch(`/chatbot/${query}`);
-    const requestBody = JSON.stringify({ query: query });
+    const requestBody = JSON.stringify({ query: query, username: username });
     const apiResponse = await fetch("http://localhost:8000/chatbot", {
       method: "POST",
       headers: {
@@ -36,16 +61,17 @@ const Chatbot = (username) => {
       body: requestBody,
     });
 
+    // // Emit a message to the server
+    // socket.emit("chat message", { username, query });
+
+    // Set loading to false after fetching
+    setLoading(false);
     setQuery("");
+
     const result = await apiResponse.json();
     setResponse(result.response);
     addMessageToHistory(AIAssistant, result.response);
   };
-
-  useEffect(() => {
-    // Connect to the backend WebSocket (FastAPI)
-    // Listen for incoming messages and update the messages state
-  }, []);
 
   const chatWindowStyle = {
     height: "400px",
@@ -91,6 +117,16 @@ const Chatbot = (username) => {
               : `🤖 ${message.text}`}
           </div>
         ))}
+
+        {/* Display spinner or response */}
+        {loading ? (
+          <ClipLoader
+            css={override}
+            size={30}
+            color={"#123abc"}
+            loading={loading}
+          />
+        ) : null}
       </div>
 
       {/* User input form */}

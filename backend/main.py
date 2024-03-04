@@ -10,6 +10,22 @@ import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sample_data import insert_sample_data
+from utils import extract_text_from_base64_pdf
+from haystack.utils import print_answers
+from haystack import Document
+from haystack.document_stores import InMemoryDocumentStore
+import os
+from haystack.pipelines.standard_pipelines import TextIndexingPipeline
+from haystack.nodes import BM25Retriever
+from haystack.nodes import FARMReader
+from haystack.pipelines import ExtractiveQAPipeline
+from haystack.utils import print_answers
+from pprint import pprint
+import os
+from dotenv.main import load_dotenv
+
+
+load_dotenv()
 
 app = FastAPI()
 
@@ -25,9 +41,9 @@ app.add_middleware(
 )
 
 # MongoDB Configuration
-MONGO_URI = "mongodb://localhost:27017"
+# MONGO_URI = "mongodb://localhost:27017"
 DATABASE_NAME = "acl_project"
-client = MongoClient(MONGO_URI)
+client = MongoClient(os.getenv('MONGO_URI'))
 db = client[DATABASE_NAME]
 
 
@@ -36,6 +52,63 @@ db = client[DATABASE_NAME]
 # Bob with read only access to 2 LLM research papers
 insert_sample_data(db)
 
+# AI pre-process data
+document_store = InMemoryDocumentStore(use_bm25=True)
+
+# Index documents
+resources = db.resources.find()
+
+indexing_pipeline = TextIndexingPipeline(document_store)
+# indexing_pipeline.run_batch(file_paths=files_to_index)
+
+# documents = [
+#     Document({
+#         "text": str(extract_text_from_base64_pdf(str(resource["content"]))),
+#         "meta": {
+#             "name": resource["name"],
+#             "id": str(resource["_id"])
+#         }
+#     }) for resource in resources
+# ]
+
+documents = []
+for resource in resources:
+    content = resource["content"]
+    text = extract_text_from_base64_pdf(content)
+    # print(text)
+
+    # doc = Document(
+    #     "content": text
+    #     "meta": {
+    #         "name": resource["name"],
+    #         "id": str(resource["_id"])
+    #     }
+    # ) 
+
+    document = Document(
+      content=text,
+      meta={"name": resource["name"],
+            "id": str(resource["_id"])}
+  	)
+    documents.append(document)
+
+# clean_wiki_text
+
+document_store.write_documents(documents)
+print(f"Write {len(documents)} documents to haystack in-memory db")
+# write_documents_to_db(documents, db, index="documents")
+
+# Initialize retriever
+retriever = BM25Retriever(document_store=document_store)
+
+# Initialize Finder
+# reader = FARMReader(model_name_or_path="bert-base-uncased-reader", use_gpu=False)
+# finder = Finder(reader, db)
+reader = FARMReader(model_name_or_path="deepset/roberta-base-squad2", use_gpu=True)
+
+# retriever = InMemoryBM25Retriever(db)
+
+pipe = ExtractiveQAPipeline(reader, retriever)
 
 # Secret key to sign the JWT token
 SECRET_KEY = "mysecretkey"
@@ -46,9 +119,6 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 def create_access_token(data: dict, expires_delta: timedelta):
     to_encode = data.copy()
     expire = datetime.utcnow() + expires_delta
-
-    # Print the to_encode dictionary
-    # print("to_encode:", to_encode)
 
     # Extract permissions and concatenate resource_id:action for each permission
     scopes = []
@@ -85,9 +155,8 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
 # Route to create a token for login
 @app.post("/login")
 async def login_for_access_token(username: str, password: str):
-    # user = next((user for user in USERS if user["username"] == username), None)
-        # Check if the user exists in MongoDB
     print("Logging in username ", username)
+    # Check if the user exists in MongoDB
     user = db.users.find_one({"username": username})
     if user is None or password != user["password"]:
         raise HTTPException(status_code=401, detail="Invalid credentials")
@@ -154,10 +223,6 @@ async def get_user_dashboard(token: str = Depends(extract_token)):
         
     # Fetch user data from database
     user = db.users.find_one({"username": username})
-    # if user:
-    #     print("found user! ", user, " with user name ", user["username"])
-    #     content={"username": user["username"], "user": str(user)}
-    #     return content
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
     
@@ -189,13 +254,64 @@ async def get_user_dashboard(token: str = Depends(extract_token)):
 
     return {"files": files}
 
+
+def print_json_structure(data, indent=2):
+    if isinstance(data, dict):
+        for key, value in data.items():
+            print(" " * indent + str(key))
+            print_json_structure(value, indent + 2)
+    elif isinstance(data, list):
+        for item in data:
+            print_json_structure(item, indent)
+    else:
+        print(" " * indent + str(data))
+
 @app.post("/chatbot")
 def chatbot(data: dict):
-    # TODO: Process the query using a NLP model or service
-    # Generate a response
     query = data["query"]
-    response = "Chatbot response for query" + query
-    return {"response": response}
+    username = data["username"]
+    print(f"user {username} query received {query}")
+    user = db.users.find_one({"username": username})
+    resource_ids = []
+    if user is not None:
+        for permission in user["permissions"]:
+            resource_id = permission["resource_id"]
+            actions = permission["actions"]
+            if "read" in actions:
+                resource_ids.append(resource_id)
+    print("user is allowed to access resources: ", resource_ids)
+
+    # Retrieve relevant passages and filter based on user permissions
+    # results = finder.get_answers(
+    #     question=query,
+    #     top_k_retriever=10,
+    #     top_k_reader=5,
+    #     filters={"meta": {"id": {"$in": resource_ids}}},
+    # )
+
+    prediction = pipe.run(
+        query=query, 
+        params={
+            "Retriever": {"top_k": 10}, 
+            "Reader": {"top_k": 5}
+        }
+    )
+
+    # print("printing prediction: ")
+    # pprint(prediction)
+
+    print("printing answers: ")
+    print_answers(prediction, details="minimum")
+
+    # print("prediction structure")
+    # print_json_structure(prediction)
+
+    # Assuming `predictions` is the list of predictions from Haystack
+    sorted_answers = sorted(prediction['answers'], key=lambda x: x.score, reverse=True)
+    best_answer = sorted_answers[0].answer
+    print(f"best answer with score {sorted_answers[0].score} is {best_answer}")
+
+    return {"response": best_answer}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000, reload=True)
