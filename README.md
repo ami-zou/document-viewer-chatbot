@@ -1,5 +1,6 @@
 Project overview: a resource management platform allowing users to upload documents, share them with their colleagues, assisted by an AI chat bot
-Demo: https://vimeo.com/919250541?share=copy
+
+**Demo**: https://vimeo.com/919250541?share=copy
 
 **Tech stack**
 1. Front-end: React
